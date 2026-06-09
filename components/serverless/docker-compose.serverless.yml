@@ -3,6 +3,8 @@ services:
     container_name: nuclio
     image: quay.io/nuclio/dashboard:1.15.9-amd64
     restart: always
+    ports:
+      - '127.0.0.1:8070:8070'
     networks:
       - cvat
     volumes:
