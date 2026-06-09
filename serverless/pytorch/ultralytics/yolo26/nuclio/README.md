@@ -1,6 +1,6 @@
 # Ultralytics YOLO26
 
-This Nuclio function runs a custom Ultralytics YOLO26 `.pt` object detection model for CVAT auto annotation.
+This Nuclio function runs a custom Ultralytics YOLO26 `.pt` object detection model for CVAT auto annotation. [Official instructions for setting automatic annotations](https://docs.cvat.ai/docs/administration/community/advanced/installation_automatic_annotation/).
 
 ## Start CVAT with Nuclio
 
@@ -42,6 +42,17 @@ The scripts call `nuctl deploy --path serverless/pytorch/ultralytics/yolo26/nucl
 ```
 
 Alternatively, set the `MODEL_PATH` environment variable in the function YAML to a mounted path that contains your `.pt` file.
+
+## Download nuclio
+
+Download binary from [GitHub releases](https://github.com/nuclio/nuclio/releases). Ensure the downloaded version matches that in `components/serverless/docker-compose.serverless.yml`.
+
+Give it a proper permission and do a softlink:
+
+```bash
+sudo chmod +x nuctl-<version>-linux-amd64
+sudo ln -sf $(pwd)/nuctl-<version>-linux-amd64 /usr/local/bin/nuctl
+```
 
 ## Deploy with the CVAT scripts
 
