@@ -1,0 +1,73 @@
+metadata:
+  name: pth-ultralytics-yolo26
+  namespace: cvat
+  annotations:
+    name: Ultralytics YOLO26
+    type: detector
+    spec: |
+      [
+        { "id": 0, "name": "package_parcel_box", "type": "rectangle" },
+        { "id": 1, "name": "polybag", "type": "rectangle" },
+        { "id": 2, "name": "envelope", "type": "rectangle" },
+        { "id": 3, "name": "person", "type": "rectangle" }
+      ]
+
+spec:
+  description: Ultralytics YOLO26 with custom PyTorch weights
+  runtime: 'python:3.10'
+  handler: main:handler
+  eventTimeout: 30s
+
+  env:
+    - name: MODEL_PATH
+      value: /opt/nuclio/model.pt
+    - name: IMAGE_SIZE
+      value: "640"
+    - name: DEVICE
+      value: cpu
+
+  build:
+    image: cvat.pth.ultralytics.yolo26
+    baseImage: ubuntu:22.04
+
+    directives:
+      preCopy:
+        - kind: ENV
+          value: DEBIAN_FRONTEND=noninteractive
+        - kind: RUN
+          value: |-
+            apt-get update \
+            && apt-get install -y --no-install-recommends \
+              ca-certificates \
+              curl \
+              libglib2.0-0 \
+              libgl1 \
+              python-is-python3 \
+              python3 \
+              python3-pip \
+            && rm -rf /var/lib/apt/lists/*
+        - kind: RUN
+          value: |-
+            pip install \
+              torch torchvision \
+              --index-url https://download.pytorch.org/whl/cpu \
+              --no-cache-dir
+        - kind: RUN
+          value: pip install ultralytics pillow pyyaml --no-cache-dir
+        - kind: WORKDIR
+          value: /opt/nuclio
+
+  triggers:
+    myHttpTrigger:
+      numWorkers: 2
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3
+      mountMode: volume
