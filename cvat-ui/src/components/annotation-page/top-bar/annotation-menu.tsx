@@ -14,7 +14,7 @@ import Icon from '@ant-design/icons';
 import { MenuProps } from 'antd/lib/menu';
 
 import { MainMenuIcon } from 'icons';
-import { Job, JobState } from 'cvat-core-wrapper';
+import { getCore, Job, JobState } from 'cvat-core-wrapper';
 import { usePlugins } from 'utils/hooks';
 
 import { openAnnotationsActionModal } from 'components/annotation-page/annotations-actions/annotations-actions-modal';
@@ -32,6 +32,7 @@ import RemoveAnnotationsConfirm, { RemoveAnnotationsConfirmProps } from './remov
 export enum Actions {
     LOAD_JOB_ANNO = 'load_job_anno',
     EXPORT_JOB_DATASET = 'export_job_dataset',
+    EXPORT_ANNOTATED_VIDEO = 'export_annotated_video',
     REMOVE_ANNOTATIONS = 'remove_annotations',
     RUN_ACTIONS = 'run_actions',
     PRELOAD_FRAMES = 'preload_frames',
@@ -67,6 +68,14 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
     const exportDataset = useCallback(() => {
         dispatch(exportActions.openExportDatasetModal(jobInstance));
     }, [jobInstance]);
+
+    const exportAnnotatedVideo = useCallback(() => {
+        window.open(
+            `${getCore().config.backendAPI}/jobs/${jobInstance.id}/annotated-video`,
+            '_blank',
+            'noopener noreferrer',
+        );
+    }, [jobInstance.id]);
 
     const finishJob = useCallback(() => {
         dispatch(finishCurrentJobAsync(() => {
@@ -138,6 +147,12 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
         label: 'Export job dataset',
         onClick: exportDataset,
     }, 20]);
+
+    menuItems.push([{
+        key: Actions.EXPORT_ANNOTATED_VIDEO,
+        label: 'Export annotated video',
+        onClick: exportAnnotatedVideo,
+    }, 25]);
 
     menuItems.push([{
         key: Actions.REMOVE_ANNOTATIONS,

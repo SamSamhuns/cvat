@@ -1019,6 +1019,7 @@ class JobPermission(OpenPolicyAgentPermission, DownloadExportedExtension):
             ("validation_layout", "GET"): Scopes.VIEW_VALIDATION_LAYOUT,
             ("validation_layout", "PATCH"): Scopes.UPDATE_VALIDATION_LAYOUT,
             ("download_dataset", "GET"): DownloadExportedExtension.Scopes.DOWNLOAD_EXPORTED_FILE,
+            ("annotated_video", "GET"): Scopes.EXPORT_DATASET,
             # deprecated API
             ("dataset_export", "GET"): Scopes.EXPORT_DATASET,
         }[(view.action, request.method)]

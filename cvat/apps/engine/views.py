@@ -48,6 +48,7 @@ import cvat.apps.dataset_manager as dm
 import cvat.apps.dataset_manager.views  # pylint: disable=unused-import
 from cvat.apps.dataset_manager.serializers import DatasetFormatsSerializer
 from cvat.apps.engine import backup
+from cvat.apps.engine.annotated_video import export_annotated_job_video
 from cvat.apps.engine.background import BackupImporter, DatasetImporter, TaskCreator
 from cvat.apps.engine.cache import (
     CacheTooLargeDataError,
@@ -2555,6 +2556,19 @@ class JobViewSet(
     @action(detail=True, methods=["GET"], serializer_class=None, url_path="dataset")
     def dataset_export(self, request: ExtendedRequest, pk: int):
         return get_410_response_for_export_api("/api/jobs/id/dataset/export?save_images=True")
+
+    @extend_schema(exclude=True)
+    @action(detail=True, methods=["GET"], serializer_class=None, url_path="annotated-video")
+    def annotated_video(self, request: ExtendedRequest, pk: int):
+        self._object = self.get_object()
+        output_path = export_annotated_job_video(self._object)
+        return sendfile(
+            request,
+            output_path,
+            attachment=True,
+            attachment_filename=f"job_{pk}_annotated.mp4",
+            mimetype="video/mp4",
+        )
 
     @extend_schema(
         summary="Get data of a job",
