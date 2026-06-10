@@ -9,7 +9,6 @@ import { useHistory } from 'react-router';
 import Modal from 'antd/lib/modal';
 import Dropdown from 'antd/lib/dropdown';
 import Button from 'antd/lib/button';
-import InputNumber from 'antd/lib/input-number';
 import message from 'antd/lib/message';
 import Icon from '@ant-design/icons';
 import { MenuProps } from 'antd/lib/menu';
@@ -52,9 +51,7 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
     const history = useHistory();
     const jobInstance = useSelector((state: CombinedState) => state.annotation.job.instance as Job);
     const frameNumber = useSelector((state: CombinedState) => state.annotation.player.frame.number);
-    const frameNumbers = useSelector((state: CombinedState) => state.annotation.job.frameNumbers);
     const [jobState, setJobState] = useState(jobInstance.state);
-    const [preloadFrameCount, setPreloadFrameCount] = useState(() => jobInstance.dataChunkSize * 3);
     const [preloadingFrames, setPreloadingFrames] = useState(false);
     const [removeAnnotationsConfirmOpen, setRemoveAnnotationsConfirmOpen] = useState(false);
     const pluginActions = usePlugins(
@@ -107,73 +104,21 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
         });
     }, [changeState]);
 
-    const preloadFrames = useCallback(async (frameCount: number) => {
+    const preloadFrames = useCallback(async () => {
         setPreloadingFrames(true);
         const hideMessage = message.loading('Preloading upcoming frames...', 0);
         try {
-            const chunkCount = Math.ceil(frameCount / jobInstance.dataChunkSize);
-            const cachedChunks = await jobInstance.frames.preload(frameNumber, chunkCount);
-            const frameIndex = frameNumbers.indexOf(frameNumber);
-            const currentChunk = frameIndex === -1 ?
-                Math.floor((frameNumber - jobInstance.startFrame) / jobInstance.dataChunkSize) :
-                Math.floor(frameIndex / jobInstance.dataChunkSize);
-            const frameOffset = frameIndex === -1 ? 0 : frameIndex % jobInstance.dataChunkSize;
-            const cached = new Set(cachedChunks);
-            let contiguousChunks = 0;
-            while (cached.has(currentChunk + contiguousChunks)) {
-                contiguousChunks++;
-            }
-
-            const actualFrameCount = Math.max(0, Math.min(
-                frameCount,
-                stopFrame - frameNumber + 1,
-                contiguousChunks * jobInstance.dataChunkSize - frameOffset,
-            ));
-
+            const maxChunkCount = Math.ceil(jobInstance.frameCount / jobInstance.dataChunkSize);
+            await jobInstance.frames.preload(frameNumber, maxChunkCount);
             dispatch(updateCachedChunksAsync());
-            if (actualFrameCount < frameCount) {
-                message.warning(`Preloaded ${actualFrameCount} of ${frameCount} requested frames`, 3);
-            } else {
-                message.success(`Upcoming frames preloaded (${actualFrameCount})`, 2);
-            }
+            message.success('Maximum upcoming frames preloaded', 2);
         } catch (error: any) {
             message.error(`Could not preload frames: ${error.toString()}`, 3);
         } finally {
             hideMessage();
             setPreloadingFrames(false);
         }
-    }, [jobInstance, frameNumber, frameNumbers, stopFrame]);
-
-    const openPreloadFramesModal = useCallback(() => {
-        const maxFrameCount = stopFrame - frameNumber + 1;
-        let frameCount = Math.min(preloadFrameCount, maxFrameCount);
-
-        Modal.confirm({
-            title: 'Preload upcoming frames',
-            content: (
-                <div>
-                    <InputNumber
-                        min={1}
-                        max={maxFrameCount}
-                        precision={0}
-                        defaultValue={frameCount}
-                        onChange={(value) => {
-                            const parsed = Math.floor(+(value || 1));
-                            frameCount = Number.isFinite(parsed) ?
-                                Math.min(Math.max(parsed, 1), maxFrameCount) :
-                                1;
-                            setPreloadFrameCount(frameCount);
-                        }}
-                    />
-                    <span> frames</span>
-                </div>
-            ),
-            okText: 'Preload',
-            cancelText: 'Cancel',
-            className: 'cvat-modal-content-preload-frames',
-            onOk: () => preloadFrames(frameCount),
-        });
-    }, [frameNumber, stopFrame, preloadFrameCount, preloadFrames]);
+    }, [jobInstance, frameNumber]);
 
     const computeClassName = (menuItemState: string): string => {
         if (menuItemState === jobState) return 'cvat-submenu-current-job-state-item';
@@ -212,7 +157,7 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
         key: Actions.PRELOAD_FRAMES,
         label: preloadingFrames ? 'Preloading frames...' : 'Preload upcoming frames',
         disabled: preloadingFrames || frameNumber >= stopFrame,
-        onClick: openPreloadFramesModal,
+        onClick: preloadFrames,
     }, 45]);
 
     menuItems.push([{
