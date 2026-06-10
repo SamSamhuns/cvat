@@ -54,6 +54,11 @@ For a fully managed setup, annotation services, or enterprise features, see
 [CVAT Enterprise](https://www.cvat.ai/enterprise) and
 [CVAT Labeling Services](https://www.cvat.ai/annotation-services).
 
+## Features from this fork
+
+- Added Ultralytics automatic annotation nuclio settings and files
+- Added preload frames option in the annotation Job Page (Previously only available in the Pro version)
+
 ## Getting Started
 
 > 💡 Want to explore CVAT before deploying anything?
