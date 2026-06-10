@@ -18,6 +18,7 @@ import {
     deleteFrame,
     restoreFrame,
     getCachedChunks,
+    preloadFrames,
     getJobFrameNumbers,
     getFramesMeta,
     clear as clearFrames,
@@ -259,6 +260,24 @@ export function implementJob(Job: typeof JobClass): typeof JobClass {
             this: JobClass,
         ): ReturnType<typeof JobClass.prototype.frames.cachedChunks> {
             return Promise.resolve(getCachedChunks(this.id));
+        },
+    });
+
+    Object.defineProperty(Job.prototype.frames.preload, 'implementation', {
+        value: function preloadFramesImplementation(
+            this: JobClass,
+            frame: Parameters<typeof JobClass.prototype.frames.preload>[0],
+            chunkCount: Parameters<typeof JobClass.prototype.frames.preload>[1],
+        ): ReturnType<typeof JobClass.prototype.frames.preload> {
+            if (!Number.isInteger(frame) || frame < 0) {
+                throw new ArgumentError(`Frame must be a positive integer. Got: "${frame}"`);
+            }
+
+            if (frame < this.startFrame || frame > this.stopFrame) {
+                throw new ArgumentError(`The frame with number ${frame} is out of the job`);
+            }
+
+            return preloadFrames(this.id, frame, chunkCount);
         },
     });
 
@@ -983,6 +1002,14 @@ export function implementTask(Task: typeof TaskClass): typeof TaskClass {
         value: async function cachedChunksImplementation(
             this: TaskClass,
         ): ReturnType<typeof TaskClass.prototype.frames.cachedChunks> {
+            throw new Error('Not implemented for Task');
+        },
+    });
+
+    Object.defineProperty(Task.prototype.frames.preload, 'implementation', {
+        value: async function preloadFramesImplementation(
+            this: TaskClass,
+        ): ReturnType<typeof TaskClass.prototype.frames.preload> {
             throw new Error('Not implemented for Task');
         },
     });

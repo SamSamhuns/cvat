@@ -1075,6 +1075,76 @@ export function getCachedChunks(jobID: number): number[] {
     return frameDataCache[jobID].provider.cachedChunks(true);
 }
 
+export async function preloadFrames(jobID: number, frame: number, chunkCount = 3): Promise<number[]> {
+    if (!(jobID in frameDataCache)) {
+        throw new Error('Frame data was not initialized for this job. Try first requesting any frame.');
+    }
+
+    await refreshJobCacheIfOutdated(jobID);
+
+    const cached = frameDataCache[jobID];
+    const meta = await cached.getMeta();
+    const dataFrameNumber = meta.getDataFrameNumber(frame - cached.jobStartFrame);
+    const currentChunk = meta.getFrameChunkIndex(dataFrameNumber);
+    const chunksToLoad = Math.max(1, Math.min(chunkCount, cached.decodedBlocksCacheSize));
+    const lastChunk = Math.min(meta.chunkCount - 1, currentChunk + chunksToLoad - 1);
+
+    for (let chunkIndex = currentChunk; chunkIndex <= lastChunk; chunkIndex++) {
+        if (!(jobID in frameDataCache)) {
+            break;
+        }
+
+        if (cached.provider.isChunkCached(chunkIndex)) {
+            continue;
+        }
+
+        while (cached.activeChunkRequest) {
+            await cached.activeChunkRequest.catch(() => {});
+        }
+
+        if (!(jobID in frameDataCache) || cached.provider.isChunkCached(chunkIndex)) {
+            continue;
+        }
+
+        cached.activeChunkRequest = new Promise<void>((resolve, reject) => {
+            const release = (error?: Error): void => {
+                cached.activeChunkRequest = null;
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            };
+
+            cached.getChunk(chunkIndex, ChunkQuality.COMPRESSED).then((chunk: ArrayBuffer) => {
+                if (!(jobID in frameDataCache)) {
+                    release();
+                    return;
+                }
+
+                cached.provider.cleanup(1);
+                cached.provider.requestDecodeBlock(
+                    chunk,
+                    chunkIndex,
+                    cached.segmentFrameNumbers.slice(
+                        chunkIndex * cached.chunkSize,
+                        (chunkIndex + 1) * cached.chunkSize,
+                    ),
+                    () => {},
+                    () => release(),
+                    (error: Error | RequestOutdatedError) => {
+                        release(error instanceof RequestOutdatedError ? undefined : error);
+                    },
+                );
+            }).catch(release);
+        });
+
+        await cached.activeChunkRequest;
+    }
+
+    return getCachedChunks(jobID);
+}
+
 export async function getJobFrameNumbers(jobID: number): Promise<number[]> {
     if (!(jobID in frameDataCache)) {
         return [];
