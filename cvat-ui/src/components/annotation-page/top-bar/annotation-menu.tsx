@@ -22,6 +22,7 @@ import { CombinedState } from 'reducers';
 import {
     finishCurrentJobAsync,
     removeAnnotationsAsync as removeAnnotationsAsyncAction,
+    updateCachedChunksAsync,
 } from 'actions/annotation-actions';
 import { exportActions } from 'actions/export-actions';
 import { importActions } from 'actions/import-actions';
@@ -33,6 +34,7 @@ export enum Actions {
     EXPORT_JOB_DATASET = 'export_job_dataset',
     REMOVE_ANNOTATIONS = 'remove_annotations',
     RUN_ACTIONS = 'run_actions',
+    PRELOAD_FRAMES = 'preload_frames',
     OPEN_TASK = 'open_task',
     FINISH_JOB = 'finish_job',
 }
@@ -48,7 +50,9 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
     const dispatch = useDispatch();
     const history = useHistory();
     const jobInstance = useSelector((state: CombinedState) => state.annotation.job.instance as Job);
+    const frameNumber = useSelector((state: CombinedState) => state.annotation.player.frame.number);
     const [jobState, setJobState] = useState(jobInstance.state);
+    const [preloadingFrames, setPreloadingFrames] = useState(false);
     const [removeAnnotationsConfirmOpen, setRemoveAnnotationsConfirmOpen] = useState(false);
     const pluginActions = usePlugins(
         (state: CombinedState) => state.plugins.components.annotationPage.menuActions.items,
@@ -100,6 +104,21 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
         });
     }, [changeState]);
 
+    const preloadFrames = useCallback(async () => {
+        setPreloadingFrames(true);
+        const hideMessage = message.loading('Preloading upcoming frames...', 0);
+        try {
+            await jobInstance.frames.preload(frameNumber);
+            dispatch(updateCachedChunksAsync());
+            message.success('Upcoming frames preloaded', 2);
+        } catch (error: any) {
+            message.error(`Could not preload frames: ${error.toString()}`, 3);
+        } finally {
+            hideMessage();
+            setPreloadingFrames(false);
+        }
+    }, [jobInstance, frameNumber]);
+
     const computeClassName = (menuItemState: string): string => {
         if (menuItemState === jobState) return 'cvat-submenu-current-job-state-item';
         return '';
@@ -132,6 +151,13 @@ function AnnotationMenuComponent(props: Props): JSX.Element {
             openAnnotationsActionModal();
         },
     }, 40]);
+
+    menuItems.push([{
+        key: Actions.PRELOAD_FRAMES,
+        label: preloadingFrames ? 'Preloading frames...' : 'Preload upcoming frames',
+        disabled: preloadingFrames || frameNumber >= stopFrame,
+        onClick: preloadFrames,
+    }, 45]);
 
     menuItems.push([{
         key: Actions.OPEN_TASK,
