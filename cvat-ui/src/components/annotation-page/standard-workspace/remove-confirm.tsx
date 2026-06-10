@@ -9,36 +9,47 @@ import { shallowEqual } from 'utils/redux';
 import { CombinedState } from 'reducers';
 import Text from 'antd/lib/typography/Text';
 import Modal from 'antd/lib/modal';
+import Checkbox from 'antd/lib/checkbox';
 
 import config from 'config';
 import { removeObjectAsync, removeObject as removeObjectAction } from 'actions/annotation-actions';
 import { ObjectType } from 'cvat-core-wrapper';
+
+const SKIP_REMOVE_TRACK_CONFIRMATION_KEY = 'cvat:skip-remove-track-confirmation';
 
 export default function RemoveConfirmComponent(): JSX.Element | null {
     const dispatch = useDispatch();
     const [visible, setVisible] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState<string | JSX.Element>('');
+    const [dontShowAgain, setDontShowAgain] = useState(false);
     const { objectState, force } = useSelector((state: CombinedState) => ({
         objectState: state.annotation.remove.objectState,
         force: state.annotation.remove.force,
     }), shallowEqual);
 
     const onOk = useCallback(() => {
+        if (dontShowAgain && objectState?.objectType === ObjectType.TRACK) {
+            localStorage.setItem(SKIP_REMOVE_TRACK_CONFIRMATION_KEY, 'true');
+        }
         dispatch(removeObjectAsync(objectState, true));
-    }, [objectState]);
+    }, [dontShowAgain, objectState]);
 
     const onCancel = useCallback(() => {
+        setDontShowAgain(false);
         dispatch(removeObjectAction(null, false));
     }, []);
 
     useEffect(() => {
+        const skipTrackWarning = objectState?.objectType === ObjectType.TRACK &&
+            localStorage.getItem(SKIP_REMOVE_TRACK_CONFIRMATION_KEY) === 'true';
         const newVisible = (!!objectState && !force && objectState.lock) ||
-            (objectState?.objectType === ObjectType.TRACK && !force);
+            (objectState?.objectType === ObjectType.TRACK && !force && !skipTrackWarning);
+        setDontShowAgain(false);
         setTitle(objectState?.lock ? 'Object is locked' : 'Remove object');
         let descriptionMessage: string | JSX.Element = 'Are you sure you want to remove it?';
 
-        if (objectState?.objectType === ObjectType.TRACK && !force) {
+        if (objectState?.objectType === ObjectType.TRACK && !force && !skipTrackWarning) {
             descriptionMessage = (
                 <>
                     <Text>
@@ -49,6 +60,11 @@ export default function RemoveConfirmComponent(): JSX.Element | null {
                             ${descriptionMessage}`
                         }
                     </Text>
+                    <div>
+                        <Checkbox onChange={(event) => setDontShowAgain(event.target.checked)}>
+                            Don&apos;t show this again
+                        </Checkbox>
+                    </div>
                     <div className='cvat-remove-object-confirm-wrapper'>
                         {/* eslint-disable-next-line */}
                         <img src={config.OUTSIDE_PIC_URL} />
