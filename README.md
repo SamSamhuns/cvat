@@ -58,6 +58,7 @@ For a fully managed setup, annotation services, or enterprise features, see
 
 - Added Ultralytics automatic annotation nuclio settings and files
 - Added preload frames option in the annotation Job Page (Previously only available in the Pro version)
+- Added download annotated video option in the annotation Job Page
 
 ## Getting Started
 
