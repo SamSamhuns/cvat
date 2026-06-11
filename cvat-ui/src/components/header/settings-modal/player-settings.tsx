@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Row, Col } from 'antd/lib/grid';
 import Checkbox, { CheckboxChangeEvent } from 'antd/lib/checkbox';
@@ -11,6 +11,7 @@ import Button from 'antd/lib/button';
 import Select from 'antd/lib/select';
 import Popover from 'antd/lib/popover';
 import InputNumber from 'antd/lib/input-number';
+import notification from 'antd/lib/notification';
 import Icon from '@ant-design/icons';
 import Text from 'antd/lib/typography/Text';
 import { CompactPicker } from 'react-color';
@@ -29,6 +30,8 @@ interface Props {
     smoothImage: boolean;
     showDeletedFrames: boolean;
     canvasBackgroundColor: string;
+    imageQuality: number | null;
+    imageQualityTaskId: number | null;
     onChangeFrameStep(step: number): void;
     onChangeFrameSpeed(speed: FrameSpeed): void;
     onSwitchResetZoom(enabled: boolean): void;
@@ -36,6 +39,7 @@ interface Props {
     onChangeCanvasBackgroundColor(color: string): void;
     onSwitchSmoothImage(enabled: boolean): void;
     onSwitchShowingDeletedFrames(enabled: boolean): void;
+    onChangeImageQuality(taskId: number, imageQuality: number): Promise<void>;
 }
 
 export default function PlayerSettingsComponent(props: Props): JSX.Element {
@@ -47,6 +51,8 @@ export default function PlayerSettingsComponent(props: Props): JSX.Element {
         smoothImage,
         showDeletedFrames,
         canvasBackgroundColor,
+        imageQuality,
+        imageQualityTaskId,
         onChangeFrameStep,
         onChangeFrameSpeed,
         onSwitchResetZoom,
@@ -54,12 +60,45 @@ export default function PlayerSettingsComponent(props: Props): JSX.Element {
         onSwitchSmoothImage,
         onChangeCanvasBackgroundColor,
         onSwitchShowingDeletedFrames,
+        onChangeImageQuality,
     } = props;
 
     const plugins = usePlugins((state) => state.plugins.components.settings.player, props);
 
     const minFrameStep = 2;
     const maxFrameStep = 1000;
+    const minImageQuality = 1;
+    const maxImageQuality = 100;
+    const [imageQualityValue, setImageQualityValue] = useState<number | null>(imageQuality);
+    const [imageQualityChanging, setImageQualityChanging] = useState(false);
+
+    useEffect(() => {
+        setImageQualityValue(imageQuality);
+    }, [imageQuality]);
+
+    const applyImageQuality = async (): Promise<void> => {
+        if (typeof imageQualityValue !== 'number' || imageQualityTaskId === null) {
+            return;
+        }
+
+        const normalizedImageQuality = Math.floor(clamp(imageQualityValue, minImageQuality, maxImageQuality));
+        if (normalizedImageQuality === imageQuality) {
+            setImageQualityValue(normalizedImageQuality);
+            return;
+        }
+
+        setImageQualityChanging(true);
+        try {
+            await onChangeImageQuality(imageQualityTaskId, normalizedImageQuality);
+            window.location.reload();
+        } catch (error) {
+            setImageQualityChanging(false);
+            notification.error({
+                message: 'Could not change image quality',
+                description: error instanceof Error ? error.toString() : '',
+            });
+        }
+    };
 
     const items: [JSX.Element, number][] = [];
     items.push([(
@@ -137,6 +176,41 @@ export default function PlayerSettingsComponent(props: Props): JSX.Element {
             </Col>
         </Row>
     ), 10]);
+
+    if (imageQuality !== null && imageQualityTaskId !== null) {
+        items.push([(
+            <Row key='image-quality' align='bottom' className='cvat-player-settings-image-quality cvat-player-setting'>
+                <Col>
+                    <Text className='cvat-text-color'> Image quality </Text>
+                    <InputNumber
+                        min={minImageQuality}
+                        max={maxImageQuality}
+                        value={imageQualityValue}
+                        onChange={(value: number | undefined | string | null): void => {
+                            if (typeof value === 'undefined' || value === null || value === '') {
+                                setImageQualityValue(null);
+                            } else {
+                                setImageQualityValue(Math.floor(clamp(+value, minImageQuality, maxImageQuality)));
+                            }
+                        }}
+                    />
+                </Col>
+                <Col offset={1}>
+                    <Button
+                        type='primary'
+                        loading={imageQualityChanging}
+                        disabled={
+                            typeof imageQualityValue !== 'number' ||
+                            Math.floor(clamp(imageQualityValue, minImageQuality, maxImageQuality)) === imageQuality
+                        }
+                        onClick={applyImageQuality}
+                    >
+                        Apply and reload
+                    </Button>
+                </Col>
+            </Row>
+        ), 15]);
+    }
 
     items.push([(
         <Row key='canvas-background' className='cvat-player-settings-canvas-background cvat-player-setting'>
