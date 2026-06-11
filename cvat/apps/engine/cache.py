@@ -225,6 +225,38 @@ class MediaCache:
             cache_item_ttl=cache_item_ttl,
         )
 
+    def _get_or_set_cache_item_with_timestamp_validation(
+        self,
+        key: str,
+        create_callback: Callback,
+        get_expected_timestamp: Callable[[], datetime],
+        *,
+        cache_item_ttl: int | None = None,
+    ) -> _CacheItem:
+        item = self._get_or_set_cache_item(
+            key,
+            create_callback,
+            cache_item_ttl=cache_item_ttl,
+        )
+        expected_timestamp = get_expected_timestamp()
+
+        try:
+            return self._validate_cache_item_timestamp(item, expected_timestamp)
+        except CvatChunkTimestampMismatchError:
+            slogger.glob.info(
+                f"Cache key {key} is stale. Item_ts: {item[3]}, "
+                f"expected_ts: {expected_timestamp}. Recreating it."
+            )
+
+        self._delete_cache_item(key)
+        item = self._create_cache_item(
+            key,
+            create_callback,
+            cache_item_ttl=cache_item_ttl,
+        )
+
+        return self._validate_cache_item_timestamp(item, get_expected_timestamp())
+
     @classmethod
     def _get_queue(cls) -> rq.Queue:
         return django_rq.get_queue(cls._QUEUE_NAME)
@@ -432,19 +464,23 @@ class MediaCache:
     def get_or_set_segment_chunk(
         self, db_segment: models.Segment, chunk_number: int, *, quality: models.FrameQuality
     ) -> DataWithMime:
-
-        item = self._get_or_set_cache_item(
-            self._make_chunk_key(db_segment, chunk_number, quality=quality),
-            Callback(
-                callable=self.prepare_segment_chunk,
-                args=[db_segment, chunk_number],
-                kwargs={"quality": quality},
-            ),
+        key = self._make_chunk_key(db_segment, chunk_number, quality=quality)
+        create_callback = Callback(
+            callable=self.prepare_segment_chunk,
+            args=[db_segment, chunk_number],
+            kwargs={"quality": quality},
         )
-        db_segment.refresh_from_db(fields=["chunks_updated_date"])
+
+        def get_expected_timestamp() -> datetime:
+            db_segment.refresh_from_db(fields=["chunks_updated_date"])
+            return db_segment.chunks_updated_date
 
         return self._to_data_with_mime(
-            self._validate_cache_item_timestamp(item, db_segment.chunks_updated_date)
+            self._get_or_set_cache_item_with_timestamp_validation(
+                key,
+                create_callback,
+                get_expected_timestamp,
+            )
         )
 
     def get_task_chunk(
@@ -465,19 +501,21 @@ class MediaCache:
         *,
         quality: models.FrameQuality,
     ) -> DataWithMime:
+        key = self._make_chunk_key(db_task, chunk_number, quality=quality)
 
-        item = self._get_or_set_cache_item(
-            self._make_chunk_key(db_task, chunk_number, quality=quality),
-            set_callback,
-        )
-
-        if is_field_cached(db_task, "segment_set"):
-            # Refresh segments to report actual dates if they were fetched previously
-            # Doing so without a check leads to an error if the related object is not prefetched
-            db_task.refresh_from_db(fields=["segment_set"])
+        def get_expected_timestamp() -> datetime:
+            if is_field_cached(db_task, "segment_set"):
+                # Refresh segments to report actual dates if they were fetched previously
+                # Doing so without a check leads to an error if the related object is not prefetched
+                db_task.refresh_from_db(fields=["segment_set"])
+            return db_task.get_chunks_updated_date()
 
         return self._to_data_with_mime(
-            self._validate_cache_item_timestamp(item, db_task.get_chunks_updated_date())
+            self._get_or_set_cache_item_with_timestamp_validation(
+                key,
+                set_callback,
+                get_expected_timestamp,
+            )
         )
 
     def get_segment_task_chunk(
@@ -498,15 +536,18 @@ class MediaCache:
         quality: models.FrameQuality,
         set_callback: Callback,
     ) -> DataWithMime:
+        key = self._make_segment_task_chunk_key(db_segment, chunk_number, quality=quality)
 
-        item = self._get_or_set_cache_item(
-            self._make_segment_task_chunk_key(db_segment, chunk_number, quality=quality),
-            set_callback,
-        )
-        db_segment.refresh_from_db(fields=["chunks_updated_date"])
+        def get_expected_timestamp() -> datetime:
+            db_segment.refresh_from_db(fields=["chunks_updated_date"])
+            return db_segment.chunks_updated_date
 
         return self._to_data_with_mime(
-            self._validate_cache_item_timestamp(item, db_segment.chunks_updated_date),
+            self._get_or_set_cache_item_with_timestamp_validation(
+                key,
+                set_callback,
+                get_expected_timestamp,
+            ),
         )
 
     def get_or_set_selective_job_chunk(
