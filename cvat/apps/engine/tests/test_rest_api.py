@@ -61,6 +61,7 @@ from cvat.apps.engine.models import (
     CloudStorage,
     Data,
     DimensionType,
+    FrameQuality,
     Job,
     Label,
     MediaType,
@@ -2750,6 +2751,8 @@ class TaskDataMetaPartialUpdateAPITestCase(ApiTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         deleted_frames = data.get("deleted_frames", db_data.deleted_frames)
         self.assertEqual(response.data["deleted_frames"], deleted_frames)
+        image_quality = data.get("image_quality", db_data.image_quality)
+        self.assertEqual(response.data["image_quality"], image_quality)
 
     def _check_api_v1_task_data_id(self, user, data):
         for db_task in self.tasks:
@@ -2775,6 +2778,22 @@ class TaskDataMetaPartialUpdateAPITestCase(ApiTestBase):
             self.client.patch(f"/api/tasks/{self.tasks[0].id}/data/meta", data=data, format="json")
             res2 = self.client.get(f"/api/tasks/{self.tasks[0].id}")
             self.assertLess(res.data["updated_date"], res2.data["updated_date"])
+
+    def test_api_v1_tasks_data_meta_image_quality(self):
+        db_task = self.tasks[0]
+        initial_chunks_updated_date = db_task.get_chunks_updated_date()
+        data = {"image_quality": 44}
+
+        with mock.patch("cvat.apps.engine.serializers.TaskFrameProvider") as task_frame_provider:
+            response = self._run_api_v1_task_data_meta_id(db_task.id, self.admin, data)
+
+        self._check_response(response, db_task.data, data)
+        task_frame_provider.return_value.invalidate_chunks.assert_called_once_with(
+            quality=FrameQuality.COMPRESSED
+        )
+        db_task.data.refresh_from_db()
+        self.assertEqual(db_task.data.image_quality, data["image_quality"])
+        self.assertLess(initial_chunks_updated_date, db_task.get_chunks_updated_date())
 
 
 class TaskUpdateLabelsAPITestCase(UpdateLabelsAPITestCase):

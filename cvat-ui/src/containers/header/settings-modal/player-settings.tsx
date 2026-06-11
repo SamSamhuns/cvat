@@ -14,6 +14,7 @@ import {
     switchSmoothImage,
     switchShowingDeletedFrames,
 } from 'actions/settings-actions';
+import { DimensionType, getCore } from 'cvat-core-wrapper';
 import { CombinedState, FrameSpeed } from 'reducers';
 
 interface StateToProps {
@@ -24,6 +25,8 @@ interface StateToProps {
     smoothImage: boolean;
     canvasBackgroundColor: string;
     showDeletedFrames: boolean;
+    imageQuality: number | null;
+    imageQualityTaskId: number | null;
 }
 
 interface DispatchToProps {
@@ -34,14 +37,24 @@ interface DispatchToProps {
     onChangeCanvasBackgroundColor(color: string): void;
     onSwitchSmoothImage(enabled: boolean): void;
     onSwitchShowingDeletedFrames(enabled: boolean): void;
+    onChangeImageQuality(taskId: number, imageQuality: number): Promise<void>;
 }
 
 function mapStateToProps(state: CombinedState): StateToProps {
     const {
         settings: { player },
+        annotation: {
+            job: { instance: jobInstance, meta },
+        },
     } = state;
 
-    return player;
+    const is2DJob = jobInstance?.dimension === DimensionType.DIMENSION_2D;
+
+    return {
+        ...player,
+        imageQuality: is2DJob && typeof meta?.imageQuality === 'number' ? meta.imageQuality : null,
+        imageQualityTaskId: is2DJob ? jobInstance?.taskId ?? null : null,
+    };
 }
 
 function mapDispatchToProps(dispatch: any): DispatchToProps {
@@ -66,6 +79,13 @@ function mapDispatchToProps(dispatch: any): DispatchToProps {
         },
         onSwitchShowingDeletedFrames(enabled: boolean): void {
             dispatch(switchShowingDeletedFrames(enabled));
+        },
+        async onChangeImageQuality(taskId: number, imageQuality: number): Promise<void> {
+            const cvat = getCore();
+            await cvat.server.request(`/api/tasks/${taskId}/data/meta`, {
+                method: 'PATCH',
+                data: { image_quality: imageQuality },
+            });
         },
     };
 }

@@ -3716,10 +3716,11 @@ class DataMetaWriteSerializer(serializers.ModelSerializer):
         child=serializers.IntegerField(min_value=0), required=False
     )
     cloud_storage_id = serializers.IntegerField(required=False, allow_null=True)
+    image_quality = serializers.IntegerField(min_value=1, max_value=100, required=False)
 
     class Meta:
         model = models.Data
-        fields = ("deleted_frames", "cloud_storage_id")
+        fields = ("deleted_frames", "cloud_storage_id", "image_quality")
 
     def validate_cloud_storage_id(self, cloud_storage_id: int):
         try:
@@ -3768,12 +3769,21 @@ class DataMetaWriteSerializer(serializers.ModelSerializer):
         return requested_deleted_frames
 
     def update(self, instance: models.Data, validated_data):
+        previous_image_quality = instance.image_quality
         instance = super().update(instance, validated_data)
         db_task = models.Task.objects.filter(data=instance).first()
         if validated_data.get("cloud_storage_id"):
             task_frame_provider = TaskFrameProvider(db_task)
             for quality in models.FrameQuality:
                 task_frame_provider.invalidate_chunks(quality=quality)
+        if (
+            db_task
+            and "image_quality" in validated_data
+            and instance.image_quality != previous_image_quality
+        ):
+            task_frame_provider = TaskFrameProvider(db_task)
+            task_frame_provider.invalidate_chunks(quality=models.FrameQuality.COMPRESSED)
+            db_task.segment_set.update(chunks_updated_date=timezone.now())
         if db_task:
             db_task.touch()
         return instance
