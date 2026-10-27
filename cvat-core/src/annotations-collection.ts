@@ -533,7 +533,9 @@ export default class Collection {
             if (object instanceof Shape) {
                 // Frame already saved and it is not outside
                 if (object.frame in keyframes && !keyframes[object.frame].outside) {
-                    throw new ArgumentError('Expected only one visible shape per frame');
+                    throw new ArgumentError(
+                        `Expected only one visible shape per frame, but got multiple on frame ${object.frame}`,
+                    );
                 }
 
                 keyframes[object.frame] = {
@@ -582,7 +584,9 @@ export default class Collection {
                             continue;
                         }
 
-                        throw new ArgumentError('Expected only one visible shape per frame');
+                        throw new ArgumentError(
+                            `Expected only one visible shape per frame, but got multiple on frame ${keyframe}`,
+                        );
                     }
 
                     // We do not save an attribute if it has the same value
