@@ -97,7 +97,7 @@ const componentShortcuts = {
     CHAPTER_BACKWARD: {
         name: 'Chapter backward',
         description: 'Go to the previous chapter',
-        sequences: ['x'],
+        sequences: ['z'],
         scope: ShortcutScope.ANNOTATION_PAGE,
     },
     CHAPTER_FORWARD: {

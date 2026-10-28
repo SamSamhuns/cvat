@@ -59,6 +59,7 @@ For a fully managed setup, annotation services, or enterprise features, see
 - Added preload frames option in the annotation Job Page (Previously only available in the Pro version)
 - Added download annotated video option in the annotation Job Page
 - Added dynamic image quality change (From the Annotation page->Settings->Player->Image Quality)
+- Added X as a delete shortcut in the standard workspace (Shift+X for locked objects). Chapter backward moves from X to Z
 
 ## Getting Started
 
