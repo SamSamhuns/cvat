@@ -2880,11 +2880,11 @@ class TaskDataMetaPartialUpdateAPITestCase(ApiTestBase):
         with mock.patch("cvat.apps.engine.serializers.TaskFrameProvider") as task_frame_provider:
             response = self._run_api_v1_task_data_meta_id(db_task.id, self.admin, data)
 
+        db_task.data.refresh_from_db()
         self._check_response(response, db_task.data, data)
         task_frame_provider.return_value.invalidate_chunks.assert_called_once_with(
             quality=FrameQuality.COMPRESSED
         )
-        db_task.data.refresh_from_db()
         self.assertEqual(db_task.data.image_quality, data["image_quality"])
         self.assertLess(initial_chunks_updated_date, db_task.get_chunks_updated_date())
 
